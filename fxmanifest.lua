@@ -3,7 +3,7 @@ game 'gta5'
 lua54 'yes'
 
 author 'Nord Scripts'
-description 'nord_keys - vehicle keys + lock/unlock + engine lock + NUI + lockpick'
+description 'nord_keys - vehicle keys + lock/unlock'
 version '1.0.0'
 
 shared_scripts {
@@ -40,4 +40,11 @@ dependencies {
   'ox_lib',
   'ox_inventory',
   'oxmysql'
+}
+
+escrow_ignore {
+    'config.lua',
+    'shared/*',
+    'install/*',
+    'server/framework/secret.token'
 }

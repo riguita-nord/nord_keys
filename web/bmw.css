@@ -1,0 +1,208 @@
+/* =========================
+   BMW - GLOBAL
+========================= */
+body{
+  margin:0;
+  background:transparent;
+  font-family:'Segoe UI', Arial, sans-serif;
+  overflow:hidden;
+}
+
+/* container BMW (usa #fobBmw no HTML) */
+#fobBmw{
+  position:absolute;
+  bottom:-420px;
+  right:4%;
+  opacity:0;
+  transition:all .35s cubic-bezier(.2,.8,.2,1);
+  transform:rotate(4deg) scale(.92);
+}
+
+#fobBmw.show{
+  bottom:6%;
+  opacity:1;
+  transform:rotate(0deg) scale(1);
+}
+
+.hidden{ display:none; }
+
+/* =========================
+   BMW KEY BODY
+========================= */
+.key-body{
+  width:165px;
+  height:390px;
+  border-radius:95px;
+  position:relative;
+
+  background:linear-gradient(180deg,#0f0f0f 0%,#1b1b1b 50%,#0c0c0c 100%);
+  box-shadow:
+    0 35px 65px rgba(0,0,0,.95),
+    inset 0 4px 15px rgba(255,255,255,.05),
+    inset 0 -6px 15px rgba(0,0,0,.9);
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  padding-top:40px;
+  gap:14px;
+
+  border:2px solid #000;
+  overflow:hidden;
+}
+
+/* piano black shine */
+.key-body::after{
+  content:"";
+  position:absolute;
+  top:-100%;
+  left:-30%;
+  width:60%;
+  height:200%;
+  background:linear-gradient(120deg,transparent,rgba(255,255,255,.07),transparent);
+  transform:rotate(25deg);
+  animation:shine 5s infinite linear;
+  pointer-events:none;
+}
+
+@keyframes shine{
+  0%{ top:-100%; }
+  100%{ top:100%; }
+}
+
+/* =========================
+   BMW LOGO + RING
+========================= */
+.logo-wrapper{
+  position:relative;
+  width:90px;
+  height:90px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  overflow:hidden;
+  background:transparent;
+}
+
+.logo{
+  position:absolute;
+  font-weight:700;
+  color:#e6e6e6;
+  font-size:26px;
+  letter-spacing:4px;
+  user-select:none;
+}
+
+.battery-ring{
+  position:absolute;
+  width:90px;
+  height:90px;
+  transform:rotate(-90deg);
+}
+
+.ring-bg{
+  stroke:rgba(255,255,255,.06);
+}
+
+.ring-progress{
+  stroke:#00aaff;
+  stroke-linecap:round;
+  transition:stroke-dashoffset .4s ease, stroke .3s ease;
+  filter:drop-shadow(0 0 8px rgba(0,150,255,.8));
+}
+
+/* out-of-range blink */
+@keyframes outOfRangeBlink{
+  0%{ stroke:#00aaff; }
+  50%{ stroke:#00ff88; }
+  100%{ stroke:#00aaff; }
+}
+
+.ring-progress.out-of-range{
+  animation:outOfRangeBlink .6s infinite;
+  filter:drop-shadow(0 0 12px rgba(0,255,180,.9));
+}
+
+/* =========================
+   BMW BUTTONS
+========================= */
+.bmw-btns{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  margin-top:6px;
+}
+
+/* botão BMW OEM */
+.key-btn{
+  width:74px;
+  height:74px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.06);
+  cursor:pointer;
+  position:relative;
+  padding:0;
+
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,.10), transparent 45%),
+    radial-gradient(circle at 50% 65%, #222 0%, #0f0f0f 70%);
+
+  box-shadow:
+    inset 0 10px 18px rgba(255,255,255,.04),
+    inset 0 -10px 16px rgba(0,0,0,.9),
+    0 14px 22px rgba(0,0,0,.85);
+
+  transition:transform .08s ease, filter .15s ease;
+}
+
+.key-btn::before{
+  content:"";
+  position:absolute;
+  inset:6px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.05);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,.05);
+  pointer-events:none;
+}
+
+/* “linha cromada” subtil */
+.key-btn::after{
+  content:"";
+  position:absolute;
+  left:18%;
+  top:18%;
+  width:52%;
+  height:10%;
+  border-radius:20px;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent);
+  filter:blur(.2px);
+  opacity:.8;
+  pointer-events:none;
+}
+
+.key-btn:hover{ filter:brightness(1.06); }
+.key-btn:active{
+  transform:translateY(2px) scale(.98);
+  filter:brightness(.98);
+}
+
+.btn-ico{
+  display:flex;
+  width:100%;
+  height:100%;
+  align-items:center;
+  justify-content:center;
+  font-size:26px;
+  color:#eaeaea;
+  text-shadow:0 2px 8px rgba(0,0,0,.7);
+}
+
+.key-btn[data-action="trunk"] .btn-ico{ color:#00aaff; }
+
+/* opcional: quando sem sinal, bloqueia */
+body.oor .key-btn{
+  opacity:.55;
+  pointer-events:none;
+}

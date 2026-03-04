@@ -1,0 +1,182 @@
+/* =========================
+   AUDI - GLOBAL
+========================= */
+body{
+  margin:0;
+  background:transparent;
+  font-family:'Segoe UI', Arial, sans-serif;
+  overflow:hidden;
+}
+
+/* container AUDI (usa #fobAudi no HTML) */
+#fobAudi{
+  position:absolute;
+  bottom:-420px;
+  right:4%;
+  opacity:0;
+  transition:all .35s cubic-bezier(.2,.8,.2,1);
+  transform:rotate(4deg) scale(.92);
+}
+
+#fobAudi.show{
+  bottom:6%;
+  opacity:1;
+  transform:rotate(0deg) scale(1);
+}
+
+.hidden{ display:none; }
+
+/* =========================
+   AUDI KEY BODY
+========================= */
+.audi-key{
+  width:140px;
+  height:360px;
+  background:linear-gradient(180deg,#1a1a1a,#0f0f0f);
+  border-radius:30px;
+  position:relative;
+
+  box-shadow:
+    0 30px 60px rgba(0,0,0,.95),
+    inset 0 2px 6px rgba(255,255,255,.05);
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding-top:35px;
+  overflow:hidden;
+}
+
+/* chrome side line */
+.audi-key::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:20px;
+  bottom:20px;
+  width:3px;
+  background:linear-gradient(to bottom,#777,#aaa,#777);
+  border-radius:2px;
+}
+
+/* =========================
+   AUDI LED
+========================= */
+.audi-led{
+  width:60%;
+  height:6px;
+  background:#00aaff;
+  border-radius:20px;
+  box-shadow:0 0 12px rgba(0,150,255,.8);
+  margin-bottom:25px;
+  transition:background .3s ease, box-shadow .3s ease;
+}
+
+@keyframes audiBlink{
+  0%{ background:#00aaff; }
+  50%{ background:#00ff88; }
+  100%{ background:#00aaff; }
+}
+
+.audi-led.out-of-range{
+  animation:audiBlink .6s infinite;
+  box-shadow:0 0 14px rgba(0,255,180,.85);
+}
+
+/* =========================
+   AUDI LOGO
+========================= */
+.audi-logo{
+  color:#e5e5e5;
+  font-size:14px;
+  letter-spacing:3px;
+  margin-bottom:30px;
+  opacity:.75;
+  user-select:none;
+}
+
+/* =========================
+   AUDI BUTTONS
+========================= */
+.audi-buttons{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+/* botão Audi OEM */
+.audi-btn{
+  width:96px;
+  height:56px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.06);
+  cursor:pointer;
+  position:relative;
+
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  padding:0 14px;
+
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.06), transparent 35%),
+    linear-gradient(180deg, #2a2a2a 0%, #141414 100%);
+
+  box-shadow:
+    inset 0 6px 10px rgba(255,255,255,.04),
+    inset 0 -10px 14px rgba(0,0,0,.85),
+    0 14px 20px rgba(0,0,0,.85);
+
+  transition:transform .08s ease, filter .15s ease;
+}
+
+/* “chrome rim” */
+.audi-btn::before{
+  content:"";
+  position:absolute;
+  inset:5px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.05);
+  pointer-events:none;
+}
+
+/* gloss strip */
+.audi-btn::after{
+  content:"";
+  position:absolute;
+  left:10px;
+  top:9px;
+  right:10px;
+  height:10px;
+  border-radius:20px;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent);
+  opacity:.85;
+  pointer-events:none;
+}
+
+.audi-btn:hover{ filter:brightness(1.06); }
+.audi-btn:active{
+  transform:translateY(2px);
+  filter:brightness(.98);
+}
+
+.audi-ico{
+  font-size:22px;
+  color:#f1f1f1;
+  text-shadow:0 2px 8px rgba(0,0,0,.7);
+}
+
+.audi-label{
+  font-size:11px;
+  letter-spacing:1.2px;
+  color:rgba(255,255,255,.65);
+}
+
+.audi-btn.trunk .audi-ico{ color:#00aaff; }
+
+/* sem sinal */
+body.oor .audi-btn{
+  opacity:.55;
+  pointer-events:none;
+}

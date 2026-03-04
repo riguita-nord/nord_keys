@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <link id="bmwCss" rel="stylesheet" href="bmw.css" disabled>
+  <link id="audiCss" rel="stylesheet" href="audi.css" disabled>
+  <link id="audiCss" rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- BMW -->
+<div id="fobBmw" class="hidden">
+  <div class="key-body">
+    <div class="logo-wrapper">
+      <svg class="battery-ring" width="90" height="90">
+        <circle class="ring-bg" cx="45" cy="45" r="40" stroke-width="6" fill="none"/>
+        <circle id="batteryCircleBmw" class="ring-progress" cx="45" cy="45" r="40" stroke-width="6" fill="none"/>
+      </svg>
+      <div class="logo">N</div>
+    </div>
+
+    <div class="bmw-btns">
+      <button class="key-btn" data-action="lock" aria-label="Trancar">
+        <span class="btn-ico">🔒</span>
+      </button>
+      <button class="key-btn" data-action="unlock" aria-label="Destrancar">
+        <span class="btn-ico">🔓</span>
+      </button>
+      <button class="key-btn" data-action="trunk" aria-label="Mala">
+        <span class="btn-ico">🚗</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- AUDI -->
+<div id="fobAudi" class="hidden">
+  <div class="audi-key">
+    <div class="audi-led" id="audiLed"></div>
+    <div class="audi-logo">N</div>
+
+    <div class="audi-buttons">
+      <button class="audi-btn" data-action="lock" aria-label="Trancar">
+        <span class="audi-ico">🔒</span>
+        <span class="audi-label">LOCK</span>
+      </button>
+
+      <button class="audi-btn" data-action="unlock" aria-label="Destrancar">
+        <span class="audi-ico">🔓</span>
+        <span class="audi-label">UNLOCK</span>
+      </button>
+
+      <button class="audi-btn trunk" data-action="trunk" aria-label="Mala">
+        <span class="audi-ico">🚗</span>
+        <span class="audi-label">TRUNK</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

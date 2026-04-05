@@ -19,6 +19,7 @@ Config.EngineLock = {
   checkIntervalMs = 350,
   allowPassengers = true, -- passageiros não bloqueiam
   blockStartIfNoKey = true,
+  driverEjectDelayMs = 3000, -- tempo antes de tirar do banco do condutor sem chave
 }
 
 -- Master key (pode abrir/fechar + ligar motor sem item)

@@ -70,6 +70,7 @@ end
 -- Temp Access (Lockpick / Carjack)
 --===============================
 local tempAccess = {} -- [plate]=expireGameTimer
+local tempBreakInEntryAccess = {} -- [plate]=expireGameTimer (entrada apenas)
 
 local function hasTempAccess(plate)
   plate = normPlate(plate)
@@ -88,6 +89,25 @@ local function grantTempAccess(plate, minutes)
   plate = normPlate(plate)
   local ms = (tonumber(minutes) or 1) * 60 * 1000
   tempAccess[plate] = GetGameTimer() + ms
+end
+
+local function hasTempBreakInEntryAccess(plate)
+  plate = normPlate(plate)
+  local exp = tempBreakInEntryAccess[plate]
+  if not exp then return false end
+
+  if GetGameTimer() > exp then
+    tempBreakInEntryAccess[plate] = nil
+    return false
+  end
+
+  return true
+end
+
+local function grantTempBreakInEntryAccess(plate, minutes)
+  plate = normPlate(plate)
+  local ms = (tonumber(minutes) or 5) * 60 * 1000
+  tempBreakInEntryAccess[plate] = GetGameTimer() + ms
 end
 
 --===============================
@@ -198,6 +218,44 @@ end)
 -- ===============================
 do
   local accessCache = {} -- [plate] = { ok=bool, t=gameTimer }
+  local pendingDriverEject = {} -- [vehicleEntity] = firstNoKeyGameTimer
+  local driverEjectDelayMs = (Config.EngineLock and Config.EngineLock.driverEjectDelayMs) or 3000
+  local enterBlockMs = 800
+
+  local function hasAnySeatedIdentity(veh)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return false end
+
+    local seats = GetVehicleModelNumberOfSeats(GetEntityModel(veh))
+    for seat = -1, (seats - 2) do
+      if GetPedInVehicleSeat(veh, seat) ~= 0 then
+        return true
+      end
+    end
+
+    return false
+  end
+
+  local function isBreakInEntryAllowed(veh, plate)
+    if hasAnySeatedIdentity(veh) then
+      return false
+    end
+
+    if hasTempBreakInEntryAccess(plate) then
+      return true
+    end
+
+    if not veh or veh == 0 then
+      return false
+    end
+
+    if (not IsVehicleWindowIntact(veh, 0) or not IsVehicleWindowIntact(veh, 1))
+      and GetEntitySpeed(veh) < 0.5
+      and not GetIsVehicleEngineRunning(veh) then
+      return true
+    end
+
+    return false
+  end
 
   local function checkAccessCached(plate, cb)
     plate = normPlate(plate)
@@ -228,15 +286,35 @@ do
       -- Se estiver a tentar entrar num veículo (F)
       local tryingVeh = GetVehiclePedIsTryingToEnter(ped)
       if tryingVeh and tryingVeh ~= 0 then
-        local plate = normPlate(GetVehicleNumberPlateText(tryingVeh))
-        if plate ~= '' then
-          checkAccessCached(plate, function(ok)
-            if not ok then
-              ClearPedTasksImmediately(ped)
-              notify('error', Config.Text.noKey)
+        if hasAnySeatedIdentity(tryingVeh) then
+          local seats = GetVehicleModelNumberOfSeats(GetEntityModel(tryingVeh))
+          for seat = -1, (seats - 2) do
+            local seatedPed = GetPedInVehicleSeat(tryingVeh, seat)
+            if seatedPed ~= 0 then
+              SetPedCanBeDraggedOut(seatedPed, false)
             end
-          end)
-          Wait(500) -- debounce para não spammar
+          end
+
+          DisableControlAction(0, 23, true) -- INPUT_ENTER
+          ClearPedTasksImmediately(ped)
+          TaskStandStill(ped, enterBlockMs)
+          notify('error', 'Veículo ocupado.')
+          Wait(500)
+        else
+          local plate = normPlate(GetVehicleNumberPlateText(tryingVeh))
+          if plate ~= '' then
+            checkAccessCached(plate, function(ok)
+              if not ok then
+                if isBreakInEntryAllowed(tryingVeh, plate) then
+                  return
+                end
+                ClearPedTasksImmediately(ped)
+                TaskStandStill(ped, enterBlockMs)
+                notify('error', Config.Text.noKey)
+              end
+            end)
+            Wait(500) -- debounce para não spammar
+          end
         end
       end
 
@@ -245,13 +323,30 @@ do
       if veh and veh ~= 0 and GetPedInVehicleSeat(veh, -1) == ped then
         local plate2 = normPlate(GetVehicleNumberPlateText(veh))
         if plate2 ~= '' then
+          if isBreakInEntryAllowed(veh, plate2) then
+            pendingDriverEject[veh] = nil
+            Wait(500)
+          else
           checkAccessCached(plate2, function(ok)
-            if not ok then
+            if ok then
+              pendingDriverEject[veh] = nil
+              return
+            end
+
+            local now = GetGameTimer()
+            if not pendingDriverEject[veh] then
+              pendingDriverEject[veh] = now
+              return
+            end
+
+            if (now - pendingDriverEject[veh]) >= driverEjectDelayMs then
+              pendingDriverEject[veh] = nil
               notify('error', Config.Text.engineBlocked or Config.Text.noKey)
               TaskLeaveVehicle(ped, veh, 16)
             end
           end)
           Wait(500)
+          end
         end
       end
     end
@@ -305,42 +400,83 @@ local function trunkToggle(veh)
     end
 end
 
--- =========================================
--- LOCK ALL NPC VEHICLES
--- =========================================
-local lockedVehicles = {}
-
-CreateThread(function()
-    while true do
-        Wait(1000)
-
-        local vehicles = GetGamePool("CVehicle")
-
-        for _, veh in ipairs(vehicles) do
-            local driver = GetPedInVehicleSeat(veh, -1)
-
-            if driver ~= 0 and not IsPedAPlayer(driver) then
-
-                -- Impede comportamento de fuga
-                SetPedFleeAttributes(driver, 0, false)
-                SetPedCombatAttributes(driver, 3, false)
-
-                -- Impede sair do veículo
-                SetPedCanBeDraggedOut(driver, false)
-                SetPedStayInVehicleWhenJacked(driver, true)
-
-                -- Garante que mantém task de condução
-                if not IsPedInAnyVehicle(driver, false) then
-                    TaskEnterVehicle(driver, veh, -1, -1, 1.0, 1, 0)
-                end
-            end
-        end
-    end
-end)
+-- NPCs não são tocados — comportam-se completamente normal (tráfego, carjack, etc.)
+-- Apenas veículos de players ficam sujeitos ao sistema de chaves.
 
 --===============================
 -- Lockpick
 --===============================
+
+local function hasAnySeatedIdentity(veh)
+  if not veh or veh == 0 or not DoesEntityExist(veh) then return false end
+
+  local seats = GetVehicleModelNumberOfSeats(GetEntityModel(veh))
+  for seat = -1, (seats - 2) do
+    if GetPedInVehicleSeat(veh, seat) ~= 0 then
+      return true
+    end
+  end
+
+  return false
+end
+
+local function canSmashWindowOnVehicle(veh)
+  if not veh or not DoesEntityExist(veh) then return false end
+  if hasAnySeatedIdentity(veh) then return false end
+
+  local speed = GetEntitySpeed(veh)
+  local engineOn = GetIsVehicleEngineRunning(veh)
+
+  return speed < 0.5 and not engineOn
+end
+
+local function smashVehicleWindowWithElbow(veh)
+  local ped = PlayerPedId()
+
+  lib.progressBar({
+    duration = 1800,
+    label = 'A partir o vidro com o cotovelo...',
+    useWhileDead = false,
+    canCancel = false,
+    disable = { move = true, car = true, combat = true }
+  })
+
+  -- Driver front window first; fallback to passenger if already broken.
+  local windowIndex = IsVehicleWindowIntact(veh, 0) and 0 or 1
+
+  NetworkRequestControlOfEntity(veh)
+  local timeout = GetGameTimer() + 1000
+  while not NetworkHasControlOfEntity(veh) and GetGameTimer() < timeout do
+    Wait(0)
+  end
+
+  SmashVehicleWindow(veh, windowIndex)
+  SetVehicleDoorsLocked(veh, 1)
+  SetVehicleDoorsLockedForAllPlayers(veh, false)
+  SetVehicleDoorsLockedForPlayer(veh, PlayerId(), false)
+end
+
+local function isBreakInEntryAllowed(veh, plate)
+  if hasAnySeatedIdentity(veh) then
+    return false
+  end
+
+  if hasTempBreakInEntryAccess(plate) then
+    return true
+  end
+
+  if not veh or veh == 0 then
+    return false
+  end
+
+  if (not IsVehicleWindowIntact(veh, 0) or not IsVehicleWindowIntact(veh, 1))
+    and GetEntitySpeed(veh) < 0.5
+    and not GetIsVehicleEngineRunning(veh) then
+    return true
+  end
+
+  return false
+end
 
 CreateThread(function()
     exports.ox_target:addGlobalVehicle({
@@ -352,6 +488,7 @@ CreateThread(function()
 
             canInteract = function(entity, distance, coords, name)
                 if not entity or not DoesEntityExist(entity) then return false end
+              if not canSmashWindowOnVehicle(entity) then return false end
 
                 local plate = normPlate(GetVehicleNumberPlateText(entity))
                 if plate == '' then return false end
@@ -359,11 +496,6 @@ CreateThread(function()
                 -- Se for carro de player (tem chave no inventário), não mostra
                 local hasKey = exports.ox_inventory:Search('count', 'vehicle_key', { plate = plate }) or 0
                 if hasKey > 0 then
-                    return false
-                end
-
-                -- Se já estiver destrancado, não mostra
-                if GetVehicleDoorLockStatus(entity) ~= 2 then
                     return false
                 end
 
@@ -377,27 +509,34 @@ CreateThread(function()
                 local plate = normPlate(GetVehicleNumberPlateText(veh))
                 if plate == '' then return end
 
+              if not canSmashWindowOnVehicle(veh) then
+                notify('error', 'Só podes partir o vidro em veículos estacionados.')
+                return
+              end
+
+              smashVehicleWindowWithElbow(veh)
+                grantTempBreakInEntryAccess(plate, 5)
+              notify('success', 'Vidro partido.')
+
                 local hasItem = exports.ox_inventory:Search('count', Config.Lockpick.item) or 0
                 if hasItem <= 0 then
-                    notify('error', 'Precisas de um lockpick.')
+                notify('error', 'Precisas de um lockpick para ligar o motor.')
                     return
                 end
 
                 lib.progressBar({
                     duration = 6000,
-                    label = 'A arrombar fechadura...',
+                label = 'A fazer ligação direta...',
                     useWhileDead = false,
                     canCancel = false,
                     disable = { move = true, car = true, combat = true }
                 })
 
-                local success = lib.skillCheck({'easy','easy'})
+              local success = lib.skillCheck(Config.Lockpick.skillcheck or {'easy', 'easy', 'medium'})
 
                 if success then
-                    notify('success', 'Porta arrombada.')
-
-                    SetVehicleDoorsLocked(veh, 1)
-                    SetVehicleDoorsLockedForAllPlayers(veh, false)
+                grantTempAccess(plate, Config.Lockpick.successTempMinutes or 20)
+                notify('success', Config.Text.lockpickSuccess)
 
                     flashLights(veh, 2)
 
@@ -415,7 +554,7 @@ CreateThread(function()
                     TriggerServerEvent('nord_keys:sv:lockpickSuccess', plate)
 
                 else
-                    notify('error', 'Falhaste ao arrombar.')
+                    notify('error', Config.Text.lockpickFail)
 
                     if math.random(1,100) <= 70 then
                         TriggerServerEvent('nord_keys:sv:consumeLockpick')
@@ -428,45 +567,8 @@ CreateThread(function()
     })
 end)
 
---===============================
--- Carjack (G)
---===============================
-CreateThread(function()
-    while true do
-        Wait(0)
-
-        local ped = PlayerPedId()
-
-        if IsPedArmed(ped, 6) then
-            local veh = GetClosestVehicle(GetEntityCoords(ped), 5.0, 0, 70)
-
-            if veh ~= 0 then
-                local driver = GetPedInVehicleSeat(veh, -1)
-
-                if driver ~= 0 and not IsPedAPlayer(driver) then
-
-                    if IsPlayerFreeAiming(PlayerId()) then
-                        local aimed, target = GetEntityPlayerIsFreeAimingAt(PlayerId())
-
-                        if aimed and target == driver then
-
-                            -- NPC entra em pânico
-                            TaskLeaveVehicle(driver, veh, 256)
-                            SetVehicleDoorsLocked(veh, 1)
-                            SetVehicleEngineOn(veh, true, true, false)
-
-                            -- Dar acesso temporário
-                            local plate = GetVehicleNumberPlateText(veh)
-                            TriggerServerEvent("nord_keys:sv:lockpickSuccess", plate)
-
-                            Wait(3000)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
+-- Carjack removido: NPCs nunca abandonam o veículo.
+-- A porta estará sempre trancada; o player simplesmente não consegue entrar.
 
 --===============================
 -- PED: Chaves Perdidas

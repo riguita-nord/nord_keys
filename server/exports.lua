@@ -10,6 +10,15 @@ local function safePlate(plate)
   return tostring(plate):upper():gsub('%s+', '')
 end
 
+local function safeSource(src)
+  src = tonumber(src)
+  if not src or src <= 0 then
+    return nil
+  end
+
+  return src
+end
+
 local function removePhysicalKey(src, plate)
   local items = exports.ox_inventory:Search(src, 'slots', 'vehicle_key')
   if not items then
@@ -38,6 +47,11 @@ exports('GetVehicleTheme', function(plate)
 end)
 
 exports('GiveVehicleKey', function(src, plate)
+  src = safeSource(src)
+  if not src then
+    return false
+  end
+
   plate = safePlate(plate)
   if plate == '' then
     return false
@@ -65,6 +79,11 @@ exports('GiveVehicleKey', function(src, plate)
 end)
 
 exports('RemoveVehicleKey', function(src, plate)
+  src = safeSource(src)
+  if not src then
+    return false
+  end
+
   plate = safePlate(plate)
   if plate == '' then
     return false
@@ -82,6 +101,11 @@ exports('RemoveVehicleKey', function(src, plate)
 end)
 
 exports('HasDBKey', function(src, plate)
+  src = safeSource(src)
+  if not src then
+    return false
+  end
+
   plate = safePlate(plate)
   if plate == '' then
     return false
@@ -106,6 +130,11 @@ exports('HasDBKey', function(src, plate)
 end)
 
 exports('GiveKeyByPlate', function(src, plate)
+  src = safeSource(src)
+  if not src then
+    return false
+  end
+
   plate = safePlate(plate)
   if plate == '' then
     return false
@@ -133,6 +162,11 @@ exports('GiveKeyByPlate', function(src, plate)
 end)
 
 exports('RemoveKeyByPlate', function(src, plate)
+  src = safeSource(src)
+  if not src then
+    return false
+  end
+
   plate = safePlate(plate)
   if plate == '' then
     return false
@@ -147,4 +181,13 @@ exports('RemoveKeyByPlate', function(src, plate)
   removePhysicalKey(src, plate)
 
   return true
+end)
+
+-- Backward-compatible aliases
+exports('HasKeyByPlate', function(src, plate)
+  return exports['nord_keys']:HasKey(src, plate)
+end)
+
+exports('RemoveKey', function(src, plate)
+  return exports['nord_keys']:RemoveKeyByPlate(src, plate)
 end)

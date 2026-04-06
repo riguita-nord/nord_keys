@@ -1,194 +1,231 @@
---========================================================--
--- NORD LAB • PRIVATE UPDATE CHECKER (PRODUCTION)
---========================================================--
-
 local RESOURCE = GetCurrentResourceName()
-local CURRENT_VERSION = GetResourceMetadata(RESOURCE, 'version', 0) or "0.0.0"
+local CURRENT_VERSION = GetResourceMetadata(RESOURCE, 'version', 0) or '0.0.0'
+local REPO = 'riguita-nord/nord_keys'
+
 local LATEST_VERSION = CURRENT_VERSION
 local UPDATE_AVAILABLE = false
+local LAST_ERROR = nil
 
-local API_URL = "https://api.github.com/repos/riguita-nord/nord_keys/git/refs/tags"
+local RELEASES_URL = ('https://api.github.com/repos/%s/releases/latest'):format(REPO)
+local TAGS_URL = ('https://api.github.com/repos/%s/tags'):format(REPO)
 
--- evita correr 2x
-if _G.__NORD_UPDATE_RUNNING then return end
-_G.__NORD_UPDATE_RUNNING = true
-
---========================================================--
--- TOKEN
---========================================================--
-local function loadKey()
-    local key = LoadResourceFile(RESOURCE, "server/framework/license.key")
-    if not key then return "unknown" end
-    return key:gsub("%s+","")
-end
-
-local LICENSE = loadKey()
-
-local function loadToken()
-    local token = LoadResourceFile(RESOURCE, "server/framework/secret.token")
-    if not token then return nil end
-
-    token = token:gsub("%s+", "") -- remove espaços/linhas
-    if token == "" then return nil end
-
-    return token
-end
-
-local GITHUB_TOKEN = loadToken()
-
-if not GITHUB_TOKEN then
+if _G.__NORD_KEYS_UPDATE_RUNNING then
     return
 end
+_G.__NORD_KEYS_UPDATE_RUNNING = true
 
---========================================================--
--- PRINT
---========================================================--
-local function header()
-    print("^5====================================================^7")
-    print("^5NORD LAB • "..RESOURCE:upper().."^7")
-    print("^5Versão local: ^7"..CURRENT_VERSION)
-    print("^5====================================================^7")
+local function printHeader()
+    print('^5====================================================^7')
+    print(('^5NORD KEYS UPDATE CHECKER (%s)^7'):format(REPO))
+    print(('^5Versao local:^7 %s'):format(CURRENT_VERSION))
+    print('^5====================================================^7')
 end
 
-local function footer()
-    print("^5====================================================^7")
+local function printFooter()
+    print('^5====================================================^7')
 end
 
-local function fail(reason)
-    print("^1✖ Falha ao verificar updates:^7 "..tostring(reason))
+local function printError(reason)
+    LAST_ERROR = tostring(reason or 'unknown error')
+    print(('^1[nord_keys] Falha ao verificar updates:^7 %s'):format(LAST_ERROR))
 end
 
-local function updated()
-    print("^2✔ Script atualizado!^7")
+local function printUpToDate()
+    print(('^2[nord_keys] Sem updates.^7 Versao atual: %s'):format(CURRENT_VERSION))
 end
 
-local function outdated(remote)
-    print("^3⬆ Nova atualização disponível!^7")
-    print("^3Local:^7 "..CURRENT_VERSION)
-    print("^3Nova:^7 "..remote)
+local function printOutdated(remoteVersion)
+    print('^3[nord_keys] Nova atualizacao disponivel.^7')
+    print(('^3Local:^7 %s'):format(CURRENT_VERSION))
+    print(('^3Remota:^7 %s'):format(remoteVersion))
 end
 
---========================================================--
--- VERSION COMPARE
---========================================================--
-local function split(v)
-    local t = {}
-    for n in v:gmatch("%d+") do
-        t[#t+1] = tonumber(n)
+local function normalizeVersion(version)
+    version = tostring(version or '')
+    version = version:gsub('^refs/tags/', '')
+    version = version:gsub('^v', '')
+    version = version:gsub('%s+', '')
+    return version
+end
+
+local function splitVersion(version)
+    local parts = {}
+    for n in normalizeVersion(version):gmatch('%d+') do
+        parts[#parts + 1] = tonumber(n)
     end
-    return t
+    return parts
 end
 
-local function isOutdated(localV, remoteV)
-    local l, r = split(localV), split(remoteV)
+local function isOutdated(localVersion, remoteVersion)
+    local localParts = splitVersion(localVersion)
+    local remoteParts = splitVersion(remoteVersion)
 
-    for i=1, math.max(#l,#r) do
-        local lv, rv = l[i] or 0, r[i] or 0
-        if rv > lv then return true end
-        if rv < lv then return false end
+    for i = 1, math.max(#localParts, #remoteParts) do
+        local lv = localParts[i] or 0
+        local rv = remoteParts[i] or 0
+        if rv > lv then
+            return true
+        end
+        if rv < lv then
+            return false
+        end
     end
+
     return false
 end
 
---========================================================--
--- GET LATEST TAG
---========================================================--
-local function getLatestTag(tags)
-    local latest = nil
-
-    local function greater(a, b)
-        local ta, tb = split(a), split(b)
-        for i=1, math.max(#ta,#tb) do
-            local av, bv = ta[i] or 0, tb[i] or 0
-            if av > bv then return true end
-            if av < bv then return false end
-        end
-        return false
+local function getHigherVersion(a, b)
+    if not a or a == '' then
+        return b
+    end
+    if not b or b == '' then
+        return a
     end
 
-    for _,tag in ipairs(tags or {}) do
-        local name = tag.ref and tag.ref:match("refs/tags/v?(.*)")
-        if name then
-            if not latest or greater(name, latest) then
-                latest = name
-            end
+    if isOutdated(a, b) then
+        return b
+    end
+
+    return a
+end
+
+local function getLatestVersionFromTags(data)
+    if type(data) ~= 'table' then
+        return nil
+    end
+
+    local latest = nil
+
+    for _, tag in ipairs(data) do
+        local version = normalizeVersion(tag.name or tag.ref)
+        if version ~= '' then
+            latest = getHigherVersion(latest, version)
         end
     end
 
     return latest
 end
 
---========================================================--
--- CHECK
---**
---========================================================--
-local function check()
-    PerformHttpRequest(API_URL, function(status, body)
+local function decodeJson(body)
+    if not body or body == '' then
+        return nil, 'Resposta vazia'
+    end
 
-        header()
+    local ok, data = pcall(json.decode, body)
+    if not ok or type(data) ~= 'table' then
+        return nil, 'JSON invalido'
+    end
 
+    return data, nil
+end
+
+local function requestJson(url, cb)
+    PerformHttpRequest(url, function(status, body)
         if status ~= 200 then
-            fail("HTTP "..tostring(status))
-            footer()
+            cb(nil, ('HTTP %s'):format(tostring(status)))
             return
         end
 
-        if not body or body == "" then
-            fail("Resposta vazia")
-            footer()
+        local data, err = decodeJson(body)
+        if not data then
+            cb(nil, err)
             return
         end
 
-        local ok, data = pcall(json.decode, body)
-        if not ok or type(data) ~= "table" then
-            fail("JSON inválido")
-            footer()
-            return
-        end
-
-        local remoteVersion = getLatestTag(data)
-
-        if not remoteVersion then
-            fail("Nenhuma tag encontrada")
-            footer()
-            return
-        end
-
-        LATEST_VERSION = remoteVersion
-        UPDATE_AVAILABLE = isOutdated(CURRENT_VERSION, remoteVersion)
-
-        if UPDATE_AVAILABLE then
-            outdated(remoteVersion)
-        else
-            updated()
-        end
-
-        footer()
-
-    end, "GET", "", {
-        ["Authorization"] = "Bearer "..GITHUB_TOKEN,
-        ["User-Agent"] = "NordLab-Updater",
-        ["Accept"] = "application/vnd.github+json"
+        cb(data, nil)
+    end, 'GET', '', {
+        ['User-Agent'] = 'nord_keys-update-checker',
+        ['Accept'] = 'application/vnd.github+json'
     })
 end
 
---========================================================--
--- SEND UPDATE STATUS TO CLIENT
---========================================================--
-RegisterNetEvent("nord_crafting:requestUpdateStatus", function()
+local function setUpdateState(remoteVersion)
+    remoteVersion = normalizeVersion(remoteVersion)
+    if remoteVersion == '' then
+        printError('Nenhuma versao remota valida encontrada')
+        return
+    end
+
+    LAST_ERROR = nil
+    LATEST_VERSION = remoteVersion
+    UPDATE_AVAILABLE = isOutdated(CURRENT_VERSION, remoteVersion)
+
+    if UPDATE_AVAILABLE then
+        printOutdated(remoteVersion)
+    else
+        printUpToDate()
+    end
+end
+
+local function checkTags()
+    requestJson(TAGS_URL, function(data, err)
+        printHeader()
+
+        if err then
+            printError(err)
+            printFooter()
+            return
+        end
+
+        local remoteVersion = getLatestVersionFromTags(data)
+        if not remoteVersion then
+            printError('Nenhuma tag encontrada')
+            printFooter()
+            return
+        end
+
+        setUpdateState(remoteVersion)
+        printFooter()
+    end)
+end
+
+local function check()
+    requestJson(RELEASES_URL, function(data, err)
+        if err then
+            checkTags()
+            return
+        end
+
+        printHeader()
+
+        local remoteVersion = normalizeVersion(data.tag_name or data.name)
+        if remoteVersion == '' then
+            printFooter()
+            checkTags()
+            return
+        end
+
+        setUpdateState(remoteVersion)
+        printFooter()
+    end)
+end
+
+RegisterNetEvent('nord_keys:requestUpdateStatus', function()
     local src = source
 
-    TriggerClientEvent("nord_crafting:receiveUpdateStatus", src, {
+    TriggerClientEvent('nord_keys:receiveUpdateStatus', src, {
         current = CURRENT_VERSION,
         latest = LATEST_VERSION,
-        update = UPDATE_AVAILABLE
+        update = UPDATE_AVAILABLE,
+        error = LAST_ERROR,
+        repo = REPO,
     })
 end)
 
---========================================================--
--- RUN ONLY WHEN RESOURCE STARTS
---========================================================--
-AddEventHandler("onResourceStart", function(res)
-    if res ~= RESOURCE then return end
+exports('GetUpdateStatus', function()
+    return {
+        current = CURRENT_VERSION,
+        latest = LATEST_VERSION,
+        update = UPDATE_AVAILABLE,
+        error = LAST_ERROR,
+        repo = REPO,
+    }
+end)
+
+AddEventHandler('onResourceStart', function(resourceName)
+    if resourceName ~= RESOURCE then
+        return
+    end
+
     SetTimeout(6000, check)
 end)

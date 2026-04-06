@@ -10,6 +10,7 @@ const audiLed = document.getElementById('audiLed');
 let theme = 'bmw';          // 'bmw' | 'audi'
 let battery = 100;
 let outOfRange = false;
+let isLocked = true;        // track do estado (locked/unlocked)
 
 const clickSound = new Audio("assets/bmw_click.wav");
 clickSound.volume = 0.4;
@@ -19,6 +20,7 @@ function bootHidden(){
   outOfRange = false;
   battery = 100;
   theme = 'bmw';
+  isLocked = true;
 
   document.body.classList.remove('oor');
 
@@ -99,7 +101,7 @@ function updateIndicators(){
   if(outOfRange) document.body.classList.add('oor');
   else document.body.classList.remove('oor');
 
-  // BMW ring
+  // BMW led ring
   if (batteryCircleBmw){
     const r = 40;
     const circumference = 2 * Math.PI * r;
@@ -112,7 +114,7 @@ function updateIndicators(){
       batteryCircleBmw.classList.add('out-of-range');
     } else {
       batteryCircleBmw.classList.remove('out-of-range');
-      batteryCircleBmw.style.stroke = (battery <= 15) ? "#ff2a2a" : "#00aaff";
+      batteryCircleBmw.style.stroke = isLocked ? "#ff2a2a" : "#00ff88";
     }
   }
 
@@ -122,12 +124,12 @@ function updateIndicators(){
     else audiLed.classList.remove('out-of-range');
 
     if(!outOfRange){
-      if (battery <= 15){
+      if (isLocked){
         audiLed.style.background = "#ff2a2a";
         audiLed.style.boxShadow = "0 0 12px rgba(255,0,0,.75)";
       } else {
-        audiLed.style.background = "#00aaff";
-        audiLed.style.boxShadow = "0 0 12px rgba(0,150,255,.8)";
+        audiLed.style.background = "#00ff88";
+        audiLed.style.boxShadow = "0 0 12px rgba(0,255,136,.8)";
       }
     }
   }
@@ -150,8 +152,15 @@ document.addEventListener('click', (e) => {
   if(!btn) return;
 
   playClick();
-  sendAction(btn.dataset.action);
-  closeFob();
+  const action = btn.dataset.action;
+  sendAction(action);
+
+  // For lock/unlock keep fob visible briefly so the status updates before closing
+  if (action === 'trunk') {
+    closeFob();
+  } else {
+    setTimeout(closeFob, 800);
+  }
 });
 
 document.addEventListener('keydown', (e) => {
@@ -177,6 +186,11 @@ window.addEventListener('message', (event) => {
 
     case 'updateBattery':
       battery = Number(data.level ?? battery);
+      updateIndicators();
+      break;
+
+    case 'syncLockState':
+      isLocked = !!data.locked;
       updateIndicators();
       break;
   }

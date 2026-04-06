@@ -63,10 +63,10 @@ body{
    AUDI LED
 ========================= */
 .audi-led{
-  width:60%;
-  height:6px;
+  width:18px;
+  height:18px;
   background:#00aaff;
-  border-radius:20px;
+  border-radius:50%;
   box-shadow:0 0 12px rgba(0,150,255,.8);
   margin-bottom:25px;
   transition:background .3s ease, box-shadow .3s ease;
@@ -96,7 +96,7 @@ body{
 }
 
 /* =========================
-   AUDI BUTTONS
+  AUDI BUTTONS
 ========================= */
 .audi-buttons{
   display:flex;

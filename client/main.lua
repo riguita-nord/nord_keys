@@ -365,6 +365,11 @@ local function toggleLock()
       return
     end
 
+    if not (Config.LockKeybindRequirePhysicalKey == true) then
+      toggleLockOnVehicle(veh, plate)
+      return
+    end
+
     fetchServerHasPhysicalKey(plate, function(hasPhysicalKey)
       if not hasPhysicalKey then
         notify('error', Config.Text.noKey)

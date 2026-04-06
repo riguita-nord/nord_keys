@@ -9,6 +9,11 @@ Config.Debug = false
 Config.LockKey = 'L'
 Config.LockpickKey = 'H'
 
+-- Remote lock/unlock behavior for /lock keybind (not key fob UI)
+-- true: requires physical key item
+-- false: only requires access (owner/master/DB/temp)
+Config.LockKeybindRequirePhysicalKey = false
+
 -- Distâncias
 Config.VehicleSearchRadius = 6.0
 Config.TransferDistance = 3.0

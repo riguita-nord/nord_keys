@@ -43,6 +43,13 @@ Alias de compatibilidade para `RemoveKeyByPlate`.
 exports['nord_keys']:RemoveVehicleKey('ABC123')
 ```
 
+### GiveKey(plate) [CLIENT]
+Alias de compatibilidade para `GiveKeyByPlate` (suporte a integracao jg-dealerships).
+
+```lua
+exports['nord_keys']:GiveKey('ABC123')
+```
+
 ## Server Exports
 
 ### HasKey(source, plate)
@@ -134,10 +141,52 @@ local ok = exports['nord_keys']:RevokeKey(source, 'ABC123', 'license:xxxxxxxx')
 ```
 
 ### GiveTemporaryKey(source, plate, targetSource, minutes)
-Concede chave temporaria para outro jogador.
+Concede chave temporaria para outro jogador com prazo de expiracao.
 
 ```lua
 local ok = exports['nord_keys']:GiveTemporaryKey(source, 'ABC123', targetSource, 30)
+```
+
+Parametros:
+- `source`: player id do proprietario/concedente
+- `plate`: placa do veiculo
+- `targetSource`: player id do recebedor
+- `minutes`: duracao da chave temporaria em minutos
+
+Comportamento:
+- A chave expirar automaticamente apos o tempo informado.
+- O item fisico pode ser removido, mas nao sera possivel usar se expirou.
+- A chave temporaria exigiu Config.TempKeys.enabled = true.
+- Respeita limites de duracao minima/maxima configurados em Config.TempKeys.
+
+Exemplo com tratamento de erro:
+
+```lua
+local success = exports['nord_keys']:GiveTemporaryKey(source, 'ABC123', targetSrc, 60)
+if not success then
+    print('Falha ao conceder chave temporaria')
+else
+    print('Chave temporaria concedida por 60 minutos')
+end
+```
+
+## Chaves Temporarias - Funcionamento
+
+As chaves temporarias:
+- Expiram automaticamente apos o tempo definido.
+- Sao armazenadas con metadados no inventario (`metadata.expiresAt`, `metadata.temporary`).
+- Quando expiram, o jogador nao consegue usar o fob ou abrir o veiculo.
+- Sao verificadas em tempo real durante acesso.
+
+Configuracao recomendada em config.lua:
+
+```lua
+Config.TempKeys = {
+    enabled = true,
+    minMinutes = 5,
+    maxMinutes = 240,
+    defaultMinutes = 30,
+}
 ```
 
 ## Integracao recomendada
@@ -151,6 +200,8 @@ local ok = exports['nord_keys']:GiveTemporaryKey(source, 'ABC123', targetSource,
 - A placa e normalizada automaticamente (uppercase, sem espacos).
 - Exports de client nao retornam confirmacao de DB; apenas validacao local/envio de evento.
 - Para operacoes criticas, prefira chamar exports server-side.
+- O atalho de trancar/destrancar (`/lock` e tecla configurada) respeita `Config.LockKeybindRequirePhysicalKey`.
+- O key fob (NUI) continua a exigir item fisico da chave para lock/unlock.
 
 ## Compatibilidade
 
